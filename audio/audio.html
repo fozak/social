@@ -1,6 +1,5 @@
 <!DOCTYPE html>
 <html lang="en">
-
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
@@ -13,23 +12,14 @@
             padding: 20px;
             background: #f5f5f5;
         }
-
         .container {
             background: white;
             padding: 30px;
             border-radius: 8px;
             box-shadow: 0 2px 10px rgba(0, 0, 0, 0.1);
         }
-
-        h1 {
-            color: #333;
-            margin-bottom: 20px;
-        }
-
-        input[type="file"] {
-            display: none;
-        }
-
+        h1 { color: #333; margin-bottom: 20px; }
+        input[type="file"] { display: none; }
         .upload-btn {
             background: #4CAF50;
             color: white;
@@ -40,39 +30,21 @@
             font-size: 16px;
             display: inline-block;
         }
-
-        .upload-btn:hover:not(:disabled) {
-            background: #45a049;
-        }
-
+        .upload-btn:hover:not(:disabled) { background: #45a049; }
         .upload-btn:disabled {
             background: #ccc;
             cursor: not-allowed;
             opacity: 0.6;
         }
-
         #status {
             margin-top: 20px;
             padding: 15px;
             border-radius: 4px;
             display: none;
         }
-
-        .info {
-            background: #e3f2fd;
-            color: #1976d2;
-        }
-
-        .success {
-            background: #e8f5e9;
-            color: #388e3c;
-        }
-
-        .error {
-            background: #ffebee;
-            color: #c62828;
-        }
-
+        .info { background: #e3f2fd; color: #1976d2; }
+        .success { background: #e8f5e9; color: #388e3c; }
+        .error { background: #ffebee; color: #c62828; }
         .progress {
             width: 100%;
             height: 30px;
@@ -82,7 +54,6 @@
             overflow: hidden;
             display: none;
         }
-
         .progress-bar {
             height: 100%;
             background: #4CAF50;
@@ -94,7 +65,6 @@
             color: white;
             font-weight: bold;
         }
-
         .file-info {
             margin-top: 15px;
             padding: 10px;
@@ -104,149 +74,147 @@
         }
     </style>
 </head>
-
 <body>
     <div class="container">
         <h1>🎬 Video to Audio Extractor</h1>
         <p>Extract audio from video files directly in your browser - no upload needed!</p>
-
+        
         <label for="videoFile" class="upload-btn" id="uploadLabel">
             Loading FFmpeg...
         </label>
         <input type="file" id="videoFile" accept="video/*" disabled>
-
+        
         <div class="file-info" id="fileInfo"></div>
-
         <div class="progress" id="progress">
             <div class="progress-bar" id="progressBar">0%</div>
         </div>
-
         <div id="status"></div>
     </div>
 
-<script type="module">
-    import { FFmpeg } from './lib/ffmpeg.js';
-    import { fetchFile, toBlobURL } from './lib/util.js';
+    <script type="module">
+        import { FFmpeg } from 'https://esm.sh/@ffmpeg/ffmpeg@0.12.10';
+        import { fetchFile, toBlobURL } from 'https://esm.sh/@ffmpeg/util@0.12.1';
 
-    const ffmpeg = new FFmpeg();
-    const videoInput = document.getElementById('videoFile');
-    const uploadLabel = document.getElementById('uploadLabel');
-    const status = document.getElementById('status');
-    const progress = document.getElementById('progress');
-    const progressBar = document.getElementById('progressBar');
-    const fileInfo = document.getElementById('fileInfo');
+        const ffmpeg = new FFmpeg();
+        const videoInput = document.getElementById('videoFile');
+        const uploadLabel = document.getElementById('uploadLabel');
+        const status = document.getElementById('status');
+        const progress = document.getElementById('progress');
+        const progressBar = document.getElementById('progressBar');
+        const fileInfo = document.getElementById('fileInfo');
 
-    let ffmpegLoaded = false;
+        let ffmpegLoaded = false;
 
-    function showStatus(message, type = 'info') {
-        status.style.display = 'block';
-        status.className = type;
-        status.textContent = message;
-    }
-
-    function updateProgress(percent) {
-        progress.style.display = 'block';
-        progressBar.style.width = percent + '%';
-        progressBar.textContent = Math.round(percent) + '%';
-    }
-
-    async function loadFFmpeg() {
-        if (ffmpegLoaded) return;
-
-        showStatus('Loading FFmpeg...', 'info');
-        uploadLabel.textContent = 'Loading FFmpeg...';
-        uploadLabel.disabled = true;
-        videoInput.disabled = true;
-
-        try {
-            await ffmpeg.load({
-                coreURL: await toBlobURL('./lib/ffmpeg-core.js', 'text/javascript'),
-                wasmURL: await toBlobURL('./lib/ffmpeg-core.wasm', 'application/wasm'),
-            });
-
-            ffmpegLoaded = true;
-            uploadLabel.textContent = 'Select Video File';
-            uploadLabel.disabled = false;
-            videoInput.disabled = false;
-            showStatus('✅ FFmpeg loaded!', 'success');
-        } catch (error) {
-            showStatus('❌ Error: ' + error.message, 'error');
-            console.error(error);
-        }
-    }
-
-    async function processVideo(file) {
-        if (!ffmpegLoaded) {
-            showStatus('⏳ FFmpeg still loading...', 'info');
-            return;
+        function showStatus(message, type = 'info') {
+            status.style.display = 'block';
+            status.className = type;
+            status.textContent = message;
         }
 
-        uploadLabel.disabled = true;
-        videoInput.disabled = true;
-        showStatus('Reading video file...', 'info');
-
-        const fileSizeMB = (file.size / 1024 / 1024).toFixed(2);
-        fileInfo.style.display = 'block';
-        fileInfo.innerHTML = `<strong>File:</strong> ${file.name} (${fileSizeMB} MB)`;
-
-        try {
-            showStatus('Loading video into memory...', 'info');
-            await ffmpeg.writeFile('input.video', await fetchFile(file));
-
-            ffmpeg.on('progress', ({ progress }) => {
-                updateProgress(progress * 100);
-            });
-
-            showStatus('Extracting audio...', 'info');
-            updateProgress(0);
-
-            await ffmpeg.exec([
-                '-i', 'input.video',
-                '-vn',
-                '-acodec', 'libmp3lame',
-                '-q:a', '2',
-                'output.mp3'
-            ]);
-
-            showStatus('Preparing download...', 'info');
-            const data = await ffmpeg.readFile('output.mp3');
-
-            const audioBlob = new Blob([data.buffer], { type: 'audio/mp3' });
-            const audioUrl = URL.createObjectURL(audioBlob);
-            const audioSizeMB = (audioBlob.size / 1024 / 1024).toFixed(2);
-
-            const a = document.createElement('a');
-            a.href = audioUrl;
-            a.download = file.name.replace(/\.[^/.]+$/, '') + '.mp3';
-            a.click();
-
-            showStatus(`✅ Audio extracted! (${audioSizeMB} MB)`, 'success');
-            progress.style.display = 'none';
-
-            await ffmpeg.deleteFile('input.video');
-            await ffmpeg.deleteFile('output.mp3');
-
-        } catch (error) {
-            showStatus('❌ Error: ' + error.message, 'error');
-            console.error(error);
-        } finally {
-            uploadLabel.disabled = false;
-            videoInput.disabled = false;
+        function updateProgress(percent) {
+            progress.style.display = 'block';
+            progressBar.style.width = percent + '%';
+            progressBar.textContent = Math.round(percent) + '%';
         }
-    }
 
-    videoInput.addEventListener('change', async (e) => {
-        const file = e.target.files[0];
-        if (file && ffmpegLoaded) {
-            await processVideo(file);
-        } else if (file && !ffmpegLoaded) {
-            showStatus('⏳ Please wait for FFmpeg to finish loading...', 'info');
+        async function loadFFmpeg() {
+            if (ffmpegLoaded) return;
+
+            showStatus('Loading FFmpeg (~31MB)...', 'info');
+            uploadLabel.textContent = 'Loading FFmpeg...';
+            uploadLabel.disabled = true;
+            videoInput.disabled = true;
+
+            try {
+                const baseURL = 'https://unpkg.com/@ffmpeg/core@0.12.6/dist/umd';
+                
+                await ffmpeg.load({
+                    coreURL: await toBlobURL(`${baseURL}/ffmpeg-core.js`, 'text/javascript'),
+                    wasmURL: await toBlobURL(`${baseURL}/ffmpeg-core.wasm`, 'application/wasm'),
+                });
+
+                ffmpegLoaded = true;
+                uploadLabel.textContent = 'Select Video File';
+                uploadLabel.disabled = false;
+                videoInput.disabled = false;
+                showStatus('✅ FFmpeg loaded!', 'success');
+            } catch (error) {
+                showStatus('❌ Error: ' + error.message, 'error');
+                console.error(error);
+            }
         }
-        videoInput.value = '';
-    });
 
-    loadFFmpeg();
-</script>
+        async function processVideo(file) {
+            if (!ffmpegLoaded) {
+                showStatus('⏳ FFmpeg still loading...', 'info');
+                return;
+            }
+
+            uploadLabel.disabled = true;
+            videoInput.disabled = true;
+            showStatus('Reading video file...', 'info');
+
+            const fileSizeMB = (file.size / 1024 / 1024).toFixed(2);
+            fileInfo.style.display = 'block';
+            fileInfo.innerHTML = `<strong>File:</strong> ${file.name} (${fileSizeMB} MB)`;
+
+            try {
+                showStatus('Loading video...', 'info');
+                await ffmpeg.writeFile('input.video', await fetchFile(file));
+
+                ffmpeg.on('progress', ({ progress }) => {
+                    updateProgress(progress * 100);
+                });
+
+                showStatus('Extracting audio...', 'info');
+                updateProgress(0);
+
+                await ffmpeg.exec([
+                    '-i', 'input.video',
+                    '-vn',
+                    '-acodec', 'libmp3lame',
+                    '-q:a', '2',
+                    'output.mp3'
+                ]);
+
+                showStatus('Preparing download...', 'info');
+                const data = await ffmpeg.readFile('output.mp3');
+
+                const audioBlob = new Blob([data.buffer], { type: 'audio/mp3' });
+                const audioUrl = URL.createObjectURL(audioBlob);
+                const audioSizeMB = (audioBlob.size / 1024 / 1024).toFixed(2);
+
+                const a = document.createElement('a');
+                a.href = audioUrl;
+                a.download = file.name.replace(/\.[^/.]+$/, '') + '.mp3';
+                a.click();
+
+                showStatus(`✅ Audio extracted! (${audioSizeMB} MB)`, 'success');
+                progress.style.display = 'none';
+
+                await ffmpeg.deleteFile('input.video');
+                await ffmpeg.deleteFile('output.mp3');
+
+            } catch (error) {
+                showStatus('❌ Error: ' + error.message, 'error');
+                console.error(error);
+            } finally {
+                uploadLabel.disabled = false;
+                videoInput.disabled = false;
+            }
+        }
+
+        videoInput.addEventListener('change', async (e) => {
+            const file = e.target.files[0];
+            if (file && ffmpegLoaded) {
+                await processVideo(file);
+            } else if (file && !ffmpegLoaded) {
+                showStatus('⏳ Please wait...', 'info');
+            }
+            videoInput.value = '';
+        });
+
+        loadFFmpeg();
+    </script>
 </body>
-
 </html>
